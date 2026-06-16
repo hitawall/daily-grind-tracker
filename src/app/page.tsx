@@ -34,6 +34,7 @@ function getDayState(dateStr: string, logsByDate: Map<string, DailyLog[]>, today
 }
 
 const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+const DOW = ['S','M','T','W','T','F','S']
 
 function useISTClock() {
   const [time, setTime] = useState(() => nowIST())
@@ -42,15 +43,6 @@ function useISTClock() {
     return () => clearInterval(id)
   }, [])
   return time
-}
-
-// Inline style helpers so we avoid Tailwind opacity hacks
-const s = {
-  card: { background: 'var(--bg-card)', border: '1px solid var(--border)' } as React.CSSProperties,
-  text1: { color: 'var(--text-1)' } as React.CSSProperties,
-  text2: { color: 'var(--text-2)' } as React.CSSProperties,
-  text3: { color: 'var(--text-3)' } as React.CSSProperties,
-  divider: { borderColor: 'var(--border)' } as React.CSSProperties,
 }
 
 export default function Home() {
@@ -120,148 +112,253 @@ export default function Home() {
     setSelectedDayLogs(await res.json())
   }
 
-  const remainingMins = tasks.reduce((sum, t) =>
-    todayLogs.get(t.id) ? sum : sum + parseDurationMinutes(t.duration_label), 0)
-  const totalMins = tasks.reduce((sum, t) => sum + parseDurationMinutes(t.duration_label), 0)
   const doneCount = tasks.filter((t) => todayLogs.get(t.id)).length
   const allDone = tasks.length > 0 && doneCount === tasks.length
+  const totalMins = tasks.reduce((sum, t) => sum + parseDurationMinutes(t.duration_label), 0)
+  const dayMinsLeft = minsLeftInDay(istNow)
 
   const days = getDaysInMonth(calYear, calMonth)
   const firstDow = new Date(calYear, calMonth, 1).getDay()
 
   const dateLabel = istNow.toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' })
-  const dayMinsLeft = minsLeftInDay(istNow)
 
   return (
-    <div className="space-y-6">
+    <div style={{ maxWidth: 520, margin: '0 auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      {/* Day remaining */}
-      <div className="rounded-xl px-5 py-4 flex items-center justify-between gap-4" style={s.card}>
+      {/* Header */}
+      <div style={{
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border)',
+        borderRadius: 16,
+        padding: '18px 20px',
+        boxShadow: 'var(--shadow)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+      }}>
         <div>
-          <div className="text-3xl font-bold tabular-nums" style={s.text1}>{formatMinutes(dayMinsLeft)}</div>
-          <div className="text-xs mt-1" style={s.text3}>left in the day · IST</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-1)', letterSpacing: '-0.03em', lineHeight: 1.1 }}>
+            {formatMinutes(dayMinsLeft)}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+            left in the day
+          </div>
         </div>
-        <div className="text-right">
-          <div className="text-sm font-medium" style={s.text2}>{dateLabel}</div>
-          {allDone && <div className="text-xs text-green-600 font-semibold mt-1">All done!</div>}
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 13, color: 'var(--text-2)', fontWeight: 500 }}>{dateLabel}</div>
+          {stats && stats.currentStreak > 0 && (
+            <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 4, fontWeight: 600 }}>
+              {stats.currentStreak} day streak
+            </div>
+          )}
+          {allDone && (
+            <div style={{ fontSize: 12, color: 'var(--green-text)', marginTop: 4, fontWeight: 600 }}>
+              All done ✓
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Streaks */}
-      {stats && (
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { value: stats.currentStreak, label: 'Current Streak', color: 'text-orange-500' },
-            { value: stats.longestStreak, label: 'Longest Streak', color: 'text-yellow-500' },
-          ].map(({ value, label, color }) => (
-            <div key={label} className="rounded-xl p-4 text-center" style={s.card}>
-              <div className={`text-3xl font-bold ${color}`}>{value}</div>
-              <div className="text-xs mt-1 uppercase tracking-wider" style={s.text3}>{label}</div>
+      {/* Today's tasks */}
+      <section>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            Today
+          </span>
+          <a
+            href="/settings"
+            style={{ fontSize: 11, color: 'var(--text-3)', textDecoration: 'none', padding: '3px 10px', border: '1px solid var(--border)', borderRadius: 99, transition: 'all 0.15s' }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-1)'; e.currentTarget.style.borderColor = 'var(--border-strong)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+          >
+            + manage tasks
+          </a>
+        </div>
+
+        {tasks.length === 0 ? (
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '1px dashed var(--border-strong)',
+            borderRadius: 12,
+            padding: '28px 20px',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 24, marginBottom: 8, opacity: 0.4 }}>○</div>
+            <div style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 4, fontWeight: 500 }}>No tasks yet</div>
+            <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 14 }}>Build your daily routine, one habit at a time.</div>
+            <a
+              href="/settings"
+              style={{
+                display: 'inline-block',
+                fontSize: 12,
+                fontWeight: 600,
+                color: 'var(--accent)',
+                border: '1px solid var(--accent)',
+                borderRadius: 99,
+                padding: '5px 16px',
+                textDecoration: 'none',
+              }}
+            >
+              Add your first task
+            </a>
+          </div>
+        ) : (
+          <>
+            {/* Progress */}
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-3)', marginBottom: 5 }}>
+                <span>{doneCount} / {tasks.length}</span>
+                <span>{totalMins > 0 ? formatMinutes(totalMins) + ' total' : ''}</span>
+              </div>
+              <div style={{ height: 3, borderRadius: 99, background: 'var(--border)', overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  borderRadius: 99,
+                  background: 'var(--accent)',
+                  width: `${tasks.length > 0 ? (doneCount / tasks.length) * 100 : 0}%`,
+                  transition: 'width 0.3s ease',
+                }} />
+              </div>
+            </div>
+
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {tasks.map((task) => {
+                const done = todayLogs.get(task.id) ?? false
+                return (
+                  <li key={task.id}>
+                    <button
+                      onClick={() => toggleTask(task.id)}
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        padding: '11px 14px',
+                        borderRadius: 10,
+                        border: done ? '1px solid var(--green-border)' : '1px solid var(--border)',
+                        background: done ? 'var(--green-bg)' : 'var(--bg-card)',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.15s',
+                        boxShadow: done ? 'none' : 'var(--shadow)',
+                      }}
+                    >
+                      {/* Checkbox */}
+                      <span style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: 5,
+                        flexShrink: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: done ? 'var(--accent)' : 'transparent',
+                        border: done ? '1.5px solid var(--accent)' : '1.5px solid var(--border-strong)',
+                        transition: 'all 0.15s',
+                        fontSize: 10,
+                        color: '#fff',
+                        fontWeight: 700,
+                      }}>
+                        {done && '✓'}
+                      </span>
+                      <span style={{
+                        flex: 1,
+                        fontSize: 13,
+                        fontWeight: 500,
+                        color: done ? 'var(--green-text)' : 'var(--text-1)',
+                        textDecoration: done ? 'line-through' : 'none',
+                        opacity: done ? 0.7 : 1,
+                      }}>
+                        {task.name}
+                      </span>
+                      {task.duration_label && (
+                        <span style={{ fontSize: 11, color: done ? 'var(--green-text)' : 'var(--text-3)', flexShrink: 0, opacity: 0.7 }}>
+                          {task.duration_label}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </>
+        )}
+      </section>
+
+      {/* Calendar — compact */}
+      <section style={{
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border)',
+        borderRadius: 14,
+        padding: '14px 16px',
+        boxShadow: 'var(--shadow)',
+      }}>
+        {/* Month nav */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <button
+            onClick={() => { const d = new Date(calYear, calMonth - 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()) }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: '2px 6px', fontSize: 14, borderRadius: 6 }}
+          >‹</button>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-2)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            {MONTH_SHORT[calMonth]} {calYear}
+          </span>
+          <button
+            onClick={() => { const d = new Date(calYear, calMonth + 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()) }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: '2px 6px', fontSize: 14, borderRadius: 6 }}
+          >›</button>
+        </div>
+
+        {/* DOW headers */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3, marginBottom: 3 }}>
+          {DOW.map((d, i) => (
+            <div key={i} style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-3)', padding: '2px 0', letterSpacing: '0.02em' }}>
+              {d}
             </div>
           ))}
         </div>
-      )}
 
-      {/* Checklist */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-xs font-semibold uppercase tracking-wider" style={s.text3}>Today&apos;s Tasks</span>
-          <div className="flex items-center gap-2">
-            {allDone && <span className="text-xs bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 px-2 py-0.5 rounded-full">All done</span>}
-            <a href="/settings" className="text-xs rounded px-2 py-0.5 transition-colors" style={{ color: 'var(--text-3)', border: '1px solid var(--border)' }}>
-              + Manage
-            </a>
-          </div>
-        </div>
-
-        {/* Progress bar */}
-        {tasks.length > 0 && (
-          <div className="mb-3">
-            <div className="flex justify-between text-xs mb-1" style={s.text3}>
-              <span>{doneCount} / {tasks.length} tasks</span>
-              <span>{totalMins > 0 ? `${formatMinutes(totalMins)} total` : ''}</span>
-            </div>
-            <div className="h-1.5 rounded-full" style={{ background: 'var(--border)' }}>
-              <div
-                className="h-1.5 rounded-full bg-green-500 transition-all duration-300"
-                style={{ width: `${tasks.length > 0 ? (doneCount / tasks.length) * 100 : 0}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        <ul className="space-y-2">
-          {tasks.map((task) => {
-            const done = todayLogs.get(task.id) ?? false
-            return (
-              <li key={task.id}>
-                <button
-                  onClick={() => toggleTask(task.id)}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left cursor-pointer transition-colors"
-                  style={done
-                    ? { background: 'var(--green-bg)', border: '1px solid var(--green-border)', color: 'var(--green-text)' }
-                    : { background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-1)' }
-                  }
-                >
-                  <span
-                    className="w-5 h-5 rounded flex-shrink-0 flex items-center justify-center text-xs font-bold"
-                    style={done
-                      ? { background: '#22c55e', border: '1px solid #22c55e', color: '#fff' }
-                      : { border: '1px solid var(--border-strong)', color: 'transparent' }
-                    }
-                  >
-                    {done && '✓'}
-                  </span>
-                  <span className={`flex-1 text-sm ${done ? 'line-through' : ''}`} style={done ? { opacity: 0.6 } : s.text1}>
-                    {task.name}
-                  </span>
-                  {task.duration_label && (
-                    <span className="text-xs flex-shrink-0" style={s.text3}>{task.duration_label}</span>
-                  )}
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      </section>
-
-      {/* Calendar */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <button onClick={() => { const d = new Date(calYear, calMonth - 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()) }}
-            className="px-2 py-1 text-lg rounded transition-colors hover:opacity-70" style={s.text2}>‹</button>
-          <span className="text-xs font-semibold uppercase tracking-wider" style={s.text3}>{MONTH_SHORT[calMonth]} {calYear}</span>
-          <button onClick={() => { const d = new Date(calYear, calMonth + 1); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()) }}
-            className="px-2 py-1 text-lg rounded transition-colors hover:opacity-70" style={s.text2}>›</button>
-        </div>
-
-        <div className="grid grid-cols-7 gap-1 text-center text-xs mb-1" style={s.text3}>
-          {['Su','Mo','Tu','We','Th','Fr','Sa'].map((d) => <div key={d} className="py-1">{d}</div>)}
-        </div>
-
-        <div className="grid grid-cols-7 gap-1">
-          {Array.from({ length: firstDow }).map((_, i) => <div key={i} />)}
+        {/* Day grid — fixed 28px cells */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
+          {Array.from({ length: firstDow }).map((_, i) => <div key={`e${i}`} />)}
           {days.map((day) => {
             const dateStr = toDateString(day)
             const state = getDayState(dateStr, calendarLogs, todayStr)
             const isToday = dateStr === todayStr
             const isSelected = dateStr === selectedDay
-            const stateStyle: React.CSSProperties =
-              state === 'complete' ? { background: '#16a34a', color: '#fff' } :
-              state === 'partial'  ? { background: '#eab308', color: '#1a1a1a' } :
-              state === 'missed'   ? { background: 'var(--red-bg)', color: 'var(--red-text)' } :
-                                     { background: 'transparent', color: 'var(--text-3)' }
+            const isFuture = state === 'future'
+
+            const cellBg =
+              state === 'complete' ? 'var(--accent)' :
+              state === 'partial'  ? '#c9a227' :
+              state === 'missed'   ? 'var(--red-bg)' : 'transparent'
+
+            const cellColor =
+              state === 'complete' ? '#fff' :
+              state === 'partial'  ? '#fff' :
+              state === 'missed'   ? 'var(--red-text)' :
+              isToday              ? 'var(--text-1)' : 'var(--text-3)'
+
             return (
               <button
                 key={dateStr}
                 onClick={() => handleDayClick(dateStr)}
-                className="aspect-square rounded-lg text-xs font-medium flex items-center justify-center transition-all"
+                disabled={isFuture}
+                title={dateStr}
                 style={{
-                  ...stateStyle,
-                  outline: isToday ? '2px solid var(--border-strong)' : isSelected ? '2px solid #60a5fa' : 'none',
-                  outlineOffset: '1px',
-                  cursor: state === 'future' ? 'default' : 'pointer',
-                  opacity: state === 'future' ? 0.3 : 1,
+                  height: 28,
+                  borderRadius: 6,
+                  border: isSelected ? '1.5px solid var(--accent)' : isToday ? '1.5px solid var(--border-strong)' : '1.5px solid transparent',
+                  background: cellBg,
+                  color: cellColor,
+                  fontSize: 11,
+                  fontWeight: isToday ? 700 : 400,
+                  cursor: isFuture ? 'default' : 'pointer',
+                  opacity: isFuture ? 0.25 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.1s',
                 }}
               >
                 {day.getDate()}
@@ -270,34 +367,55 @@ export default function Home() {
           })}
         </div>
 
-        <div className="flex gap-4 mt-3 text-xs" style={s.text3}>
-          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-green-600 inline-block" />Complete</span>
-          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-yellow-400 inline-block" />Partial</span>
-          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded inline-block" style={{ background: 'var(--red-bg)', outline: '1px solid var(--red-text)' }} />Missed</span>
+        {/* Legend */}
+        <div style={{ display: 'flex', gap: 14, marginTop: 10, fontSize: 10, color: 'var(--text-3)' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--accent)', display: 'inline-block' }} />
+            Done
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: '#c9a227', display: 'inline-block' }} />
+            Partial
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--red-bg)', border: '1px solid var(--red-text)', display: 'inline-block' }} />
+            Missed
+          </span>
         </div>
       </section>
 
-      {/* Day detail */}
+      {/* Day detail drawer */}
       {selectedDay && (
-        <section className="rounded-xl p-4" style={s.card}>
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-semibold" style={s.text1}>
-              {new Date(selectedDay + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+        <section style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
+          borderRadius: 12,
+          padding: '14px 16px',
+          boxShadow: 'var(--shadow)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)' }}>
+              {new Date(selectedDay + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
             </span>
-            <button onClick={() => setSelectedDay(null)} className="text-sm" style={s.text3}>✕</button>
+            <button onClick={() => setSelectedDay(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', fontSize: 12 }}>✕</button>
           </div>
           {selectedDayLogs.length === 0 ? (
-            <p className="text-sm" style={s.text3}>No data recorded for this day.</p>
+            <p style={{ fontSize: 12, color: 'var(--text-3)', margin: 0 }}>No data recorded.</p>
           ) : (
-            <ul className="space-y-1.5">
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 5 }}>
               {selectedDayLogs.map((log) => {
                 const task = tasks.find((t) => t.id === log.task_id)
                 return (
-                  <li key={log.id} className={`text-sm flex items-center gap-2 ${log.completed ? '' : 'line-through'}`}
-                    style={{ color: log.completed ? '#22c55e' : 'var(--text-3)' }}>
-                    <span className="flex-shrink-0">{log.completed ? '✓' : '✗'}</span>
-                    {task?.name ?? 'Unknown task'}
-                    {task?.duration_label && <span className="text-xs opacity-60">{task.duration_label}</span>}
+                  <li key={log.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                    <span style={{ color: log.completed ? 'var(--accent)' : 'var(--red-text)', fontSize: 10, flexShrink: 0 }}>
+                      {log.completed ? '✓' : '✗'}
+                    </span>
+                    <span style={{ color: log.completed ? 'var(--text-1)' : 'var(--text-3)', textDecoration: log.completed ? 'none' : 'line-through' }}>
+                      {task?.name ?? 'Unknown task'}
+                    </span>
+                    {task?.duration_label && (
+                      <span style={{ color: 'var(--text-3)', fontSize: 10, marginLeft: 'auto' }}>{task.duration_label}</span>
+                    )}
                   </li>
                 )
               })}
@@ -307,39 +425,61 @@ export default function Home() {
       )}
 
       {/* Stats */}
-      {stats && (
+      {stats && stats.totalDays > 0 && (
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={s.text3}>Stats</h2>
-          <div className="grid grid-cols-3 gap-3 mb-4">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 14 }}>
             {[
-              { value: stats.totalDays, label: 'Days Tracked', color: s.text1 },
-              { value: stats.fullyCompleteDays, label: 'Full Days', color: { color: '#22c55e' } },
-              { value: `${stats.completionRate}%`, label: 'Completion', color: { color: '#60a5fa' } },
+              { value: stats.currentStreak,    label: 'Streak',     color: 'var(--accent)' },
+              { value: stats.longestStreak,    label: 'Best',       color: 'var(--text-2)' },
+              { value: stats.fullyCompleteDays, label: 'Full days',  color: 'var(--text-2)' },
+              { value: `${stats.completionRate}%`, label: 'Rate',   color: 'var(--text-2)' },
             ].map(({ value, label, color }) => (
-              <div key={label} className="rounded-xl p-3 text-center" style={s.card}>
-                <div className="text-2xl font-bold" style={color}>{value}</div>
-                <div className="text-xs mt-1" style={s.text3}>{label}</div>
+              <div key={label} style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                padding: '10px 8px',
+                textAlign: 'center',
+                boxShadow: 'var(--shadow)',
+              }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color, letterSpacing: '-0.02em' }}>{value}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-3)', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
               </div>
             ))}
           </div>
 
-          <h3 className="text-xs font-semibold uppercase tracking-wider mb-2" style={s.text3}>Per-task completion</h3>
-          {stats.taskStats.filter((t) => t.total > 0).length === 0 ? (
-            <p className="text-sm" style={s.text3}>No task history yet. Start checking off tasks above.</p>
-          ) : (
-            <ul className="space-y-2.5">
-              {stats.taskStats.filter((t) => t.total > 0).sort((a, b) => (a.rate ?? 0) - (b.rate ?? 0)).map((t) => (
-                <li key={t.id} className="flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs truncate" style={s.text2}>{t.name}</div>
-                    <div className="h-1.5 rounded-full mt-1" style={{ background: 'var(--border)' }}>
-                      <div className="h-1.5 rounded-full bg-green-500 transition-all" style={{ width: `${t.rate ?? 0}%` }} />
+          {stats.taskStats.filter((t) => t.total > 0).length > 0 && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8 }}>
+                Per task
+              </div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {stats.taskStats.filter((t) => t.total > 0).sort((a, b) => (b.rate ?? 0) - (a.rate ?? 0)).map((t) => (
+                  <li key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                        <span style={{ fontSize: 12, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {t.name}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--text-3)', flexShrink: 0, marginLeft: 8 }}>
+                          {t.rate !== null ? `${t.rate}%` : '—'}
+                        </span>
+                      </div>
+                      <div style={{ height: 3, borderRadius: 99, background: 'var(--border)', overflow: 'hidden' }}>
+                        <div style={{
+                          height: '100%',
+                          borderRadius: 99,
+                          background: (t.rate ?? 0) >= 80 ? 'var(--accent)' : (t.rate ?? 0) >= 50 ? '#c9a227' : 'var(--red-text)',
+                          width: `${t.rate ?? 0}%`,
+                          transition: 'width 0.3s ease',
+                          opacity: 0.8,
+                        }} />
+                      </div>
                     </div>
-                  </div>
-                  <span className="text-xs w-8 text-right flex-shrink-0" style={s.text3}>{t.rate !== null ? `${t.rate}%` : '—'}</span>
-                </li>
-              ))}
-            </ul>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </section>
       )}

@@ -18,7 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </head>
         <body className="min-h-full flex flex-col antialiased" style={{ background: 'var(--bg)', color: 'var(--text-1)' }}>
           <NavBar />
-          <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-6">
+          <main className="flex-1 w-full">
             {children}
           </main>
         </body>
