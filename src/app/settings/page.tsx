@@ -12,42 +12,50 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import type { Task } from '@/lib/supabase'
 
-const s = {
-  card:  { background: 'var(--bg-card)', border: '1px solid var(--border)' } as React.CSSProperties,
-  text1: { color: 'var(--text-1)' } as React.CSSProperties,
-  text2: { color: 'var(--text-2)' } as React.CSSProperties,
-  text3: { color: 'var(--text-3)' } as React.CSSProperties,
-  input: {
-    background: 'var(--bg-card)', border: '1px solid var(--border)',
-    color: 'var(--text-1)',
-  } as React.CSSProperties,
-}
-
 function SortableTask({ task, onDelete }: { task: Task; onDelete: (id: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
 
   return (
     <li
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, ...s.card }}
-      className="flex items-center gap-3 px-4 py-3 rounded-lg"
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.4 : 1,
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border)',
+        borderRadius: 10,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '10px 12px',
+        boxShadow: isDragging ? 'var(--shadow-md)' : 'var(--shadow)',
+      }}
     >
       <button
         {...attributes} {...listeners}
-        className="cursor-grab active:cursor-grabbing touch-none text-lg leading-none"
-        style={s.text3}
+        style={{
+          background: 'none', border: 'none', cursor: 'grab',
+          color: 'var(--text-3)', padding: '2px 4px', fontSize: 13,
+          display: 'flex', alignItems: 'center',
+        }}
         aria-label="Drag to reorder"
       >
         ⠿
       </button>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm truncate" style={s.text1}>{task.name}</div>
-        {task.duration_label && <div className="text-xs mt-0.5" style={s.text3}>{task.duration_label}</div>}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, color: 'var(--text-1)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {task.name}
+        </div>
+        {task.duration_label && (
+          <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>{task.duration_label}</div>
+        )}
       </div>
       <button
         onClick={() => onDelete(task.id)}
-        className="text-sm flex-shrink-0 transition-colors hover:text-red-500"
-        style={s.text3}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', fontSize: 12, padding: '4px 6px', borderRadius: 6 }}
+        onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--red-text)')}
+        onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-3)')}
         aria-label={`Delete ${task.name}`}
       >
         ✕
@@ -61,7 +69,7 @@ export default function SettingsPage() {
   const [newName, setNewName] = useState('')
   const [newDuration, setNewDuration] = useState('')
   const [saving, setSaving] = useState(false)
-  const [notice, setNotice] = useState('')
+  const [notice, setNotice] = useState<{ msg: string; ok: boolean } | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -75,9 +83,9 @@ export default function SettingsPage() {
 
   useEffect(() => { fetchTasks() }, [fetchTasks])
 
-  const showNotice = (msg: string) => {
-    setNotice(msg)
-    setTimeout(() => setNotice(''), 3000)
+  const showNotice = (msg: string, ok = true) => {
+    setNotice({ msg, ok })
+    setTimeout(() => setNotice(null), 3000)
   }
 
   const handleAdd = async (e: React.FormEvent) => {
@@ -90,9 +98,10 @@ export default function SettingsPage() {
       body: JSON.stringify({ name: newName.trim(), duration_label: newDuration.trim() || null }),
     })
     if (res.ok) {
-      setNewName(''); setNewDuration('')
+      setNewName('')
+      setNewDuration('')
       await fetchTasks()
-      showNotice('Task added. Changes apply from tomorrow.')
+      showNotice('Task added.')
     }
     setSaving(false)
   }
@@ -102,73 +111,135 @@ export default function SettingsPage() {
     if (!confirm(`Remove "${task?.name}"? Past data is preserved.`)) return
     await fetch(`/api/tasks/${id}`, { method: 'DELETE' })
     setTasks((prev) => prev.filter((t) => t.id !== id))
-    showNotice('Task removed. Past records are preserved.')
+    showNotice('Task removed. History preserved.')
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
-    const reordered = arrayMove(tasks, tasks.findIndex((t) => t.id === active.id), tasks.findIndex((t) => t.id === over.id))
+    const reordered = arrayMove(
+      tasks,
+      tasks.findIndex((t) => t.id === active.id),
+      tasks.findIndex((t) => t.id === over.id),
+    )
     setTasks(reordered)
     await fetch('/api/tasks/reorder', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids: reordered.map((t) => t.id) }),
     })
-    showNotice('Order saved.')
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
+    <div style={{ maxWidth: 520, margin: '0 auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <h1 className="text-lg font-semibold" style={s.text1}>Manage Tasks</h1>
-          <p className="text-xs mt-0.5" style={s.text3}>Changes apply from tomorrow onwards.</p>
+          <h1 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-1)', margin: 0, letterSpacing: '-0.02em' }}>Tasks</h1>
+          <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '4px 0 0' }}>Drag to reorder. Changes apply from tomorrow.</p>
         </div>
-        <a href="/" className="text-xs transition-colors" style={s.text3}>← Home</a>
+        <a href="/" style={{ fontSize: 12, color: 'var(--text-3)', textDecoration: 'none' }}>← back</a>
       </div>
 
       {notice && (
-        <div className="text-sm px-4 py-2.5 rounded-lg" style={{ background: 'var(--bg-card)', border: '1px solid #60a5fa', color: '#60a5fa' }}>
-          {notice}
+        <div style={{
+          fontSize: 12,
+          padding: '10px 14px',
+          borderRadius: 8,
+          background: notice.ok ? 'var(--accent-soft)' : 'var(--red-bg)',
+          color: notice.ok ? 'var(--accent)' : 'var(--red-text)',
+          border: `1px solid ${notice.ok ? 'var(--green-border)' : 'var(--red-text)'}`,
+        }}>
+          {notice.msg}
         </div>
       )}
 
+      {/* Add form */}
       <section>
-        <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={s.text3}>Add Task</h2>
-        <form onSubmit={handleAdd} className="flex gap-2 flex-wrap">
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>
+          Add task
+        </div>
+        <form onSubmit={handleAdd} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <input
-            type="text" value={newName} onChange={(e) => setNewName(e.target.value)}
-            placeholder="Task name" required
-            className="flex-1 min-w-0 rounded-lg px-3 py-2 text-sm focus:outline-none"
-            style={{ ...s.input, outlineOffset: '2px' }}
+            type="text"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Task name"
+            required
+            style={{
+              flex: '1 1 160px',
+              minWidth: 0,
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              padding: '9px 12px',
+              fontSize: 13,
+              color: 'var(--text-1)',
+              outline: 'none',
+            }}
+            onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
+            onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
           />
           <input
-            type="text" value={newDuration} onChange={(e) => setNewDuration(e.target.value)}
+            type="text"
+            value={newDuration}
+            onChange={(e) => setNewDuration(e.target.value)}
             placeholder="Duration (e.g. 1 hr)"
-            className="w-36 rounded-lg px-3 py-2 text-sm focus:outline-none"
-            style={s.input}
+            style={{
+              width: 140,
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              padding: '9px 12px',
+              fontSize: 13,
+              color: 'var(--text-1)',
+              outline: 'none',
+            }}
+            onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
+            onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
           />
           <button
-            type="submit" disabled={saving || !newName.trim()}
-            className="rounded-lg px-4 py-2 text-sm transition-colors disabled:opacity-40"
-            style={{ ...s.card, color: 'var(--text-1)' }}
+            type="submit"
+            disabled={saving || !newName.trim()}
+            style={{
+              background: 'var(--accent)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 8,
+              padding: '9px 18px',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: saving || !newName.trim() ? 'not-allowed' : 'pointer',
+              opacity: saving || !newName.trim() ? 0.5 : 1,
+              transition: 'opacity 0.15s',
+            }}
           >
             Add
           </button>
         </form>
       </section>
 
+      {/* Task list */}
       <section>
-        <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={s.text3}>
-          Current Tasks — drag to reorder
-        </h2>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>
+          Current tasks
+        </div>
         {tasks.length === 0 ? (
-          <p className="text-sm" style={s.text3}>No tasks. Add one above.</p>
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '1px dashed var(--border-strong)',
+            borderRadius: 10,
+            padding: '24px',
+            textAlign: 'center',
+            fontSize: 13,
+            color: 'var(--text-3)',
+          }}>
+            No tasks yet — add your first one above.
+          </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-              <ul className="space-y-2">
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {tasks.map((task) => <SortableTask key={task.id} task={task} onDelete={handleDelete} />)}
               </ul>
             </SortableContext>
