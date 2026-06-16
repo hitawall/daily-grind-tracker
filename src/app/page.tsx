@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { today, getDaysInMonth, toDateString } from '@/lib/dates'
+import { today, getDaysInMonth, toDateString, nowIST, parseDurationMinutes, formatMinutes } from '@/lib/dates'
 import type { Task, DailyLog } from '@/lib/supabase'
 
 type Stats = {
@@ -45,8 +45,16 @@ const STATE_COLORS: Record<DayState, string> = {
   empty: 'bg-transparent text-white/40',
 }
 
-const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+function useISTClock() {
+  const [time, setTime] = useState(() => nowIST())
+  useEffect(() => {
+    const id = setInterval(() => setTime(nowIST()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  return time
+}
 
 export default function Home() {
   const [tasks, setTasks] = useState<Task[]>([])
@@ -57,6 +65,7 @@ export default function Home() {
   const [selectedDayLogs, setSelectedDayLogs] = useState<DailyLog[]>([])
   const [calYear, setCalYear] = useState(new Date().getFullYear())
   const [calMonth, setCalMonth] = useState(new Date().getMonth())
+  const istNow = useISTClock()
   const todayStr = today()
 
   const fetchTasks = useCallback(async () => {
@@ -126,12 +135,56 @@ export default function Home() {
     setSelectedDayLogs(data)
   }
 
+  // Time remaining = sum of durations of unchecked tasks
+  const remainingMins = tasks.reduce((sum, task) => {
+    if (!(todayLogs.get(task.id) ?? false)) {
+      return sum + parseDurationMinutes(task.duration_label)
+    }
+    return sum
+  }, 0)
+
+  const totalMins = tasks.reduce((sum, t) => sum + parseDurationMinutes(t.duration_label), 0)
+
   const days = getDaysInMonth(calYear, calMonth)
   const firstDow = new Date(calYear, calMonth, 1).getDay()
   const allDone = tasks.length > 0 && tasks.every((t) => todayLogs.get(t.id))
 
+  const timeStr = istNow.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  })
+  const dateLabel = istNow.toLocaleDateString('en-IN', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  })
+
   return (
     <div className="space-y-8">
+      {/* IST Clock + Time Remaining */}
+      <div className="bg-white/5 border border-white/8 rounded-xl px-5 py-4 flex items-center justify-between gap-4">
+        <div>
+          <div className="text-3xl font-bold tracking-tight tabular-nums text-white">
+            {timeStr}
+          </div>
+          <div className="text-xs text-white/40 mt-0.5">{dateLabel} · IST</div>
+        </div>
+        <div className="text-right">
+          {allDone ? (
+            <div className="text-green-400 font-semibold text-sm">All done!</div>
+          ) : (
+            <>
+              <div className="text-xl font-bold text-orange-300 tabular-nums">
+                {formatMinutes(remainingMins)}
+              </div>
+              <div className="text-xs text-white/40 mt-0.5">remaining</div>
+            </>
+          )}
+        </div>
+      </div>
+
       {/* Streaks */}
       {stats && (
         <div className="grid grid-cols-2 gap-3">
@@ -150,14 +203,39 @@ export default function Home() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-xs font-semibold text-white/40 uppercase tracking-wider">
-            {new Date(todayStr + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            Today&apos;s Tasks
           </h2>
-          {allDone && tasks.length > 0 && (
-            <span className="text-xs bg-green-700/40 text-green-400 px-2 py-0.5 rounded-full">
-              All done
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {allDone && tasks.length > 0 && (
+              <span className="text-xs bg-green-700/40 text-green-400 px-2 py-0.5 rounded-full">
+                All done
+              </span>
+            )}
+            <a
+              href="/settings"
+              className="text-xs text-white/30 hover:text-white/60 transition-colors border border-white/10 hover:border-white/20 rounded px-2 py-0.5"
+            >
+              + Manage
+            </a>
+          </div>
         </div>
+
+        {/* Progress bar */}
+        {tasks.length > 0 && (
+          <div className="mb-3">
+            <div className="flex justify-between text-xs text-white/30 mb-1">
+              <span>{tasks.filter((t) => todayLogs.get(t.id)).length} / {tasks.length} tasks</span>
+              <span>{totalMins > 0 ? `${formatMinutes(totalMins)} total` : ''}</span>
+            </div>
+            <div className="h-1 bg-white/10 rounded-full">
+              <div
+                className="h-1 rounded-full bg-green-600 transition-all duration-300"
+                style={{ width: `${tasks.length > 0 ? (tasks.filter((t) => todayLogs.get(t.id)).length / tasks.length) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         <ul className="space-y-2">
           {tasks.map((task) => {
             const done = todayLogs.get(task.id) ?? false
@@ -180,7 +258,9 @@ export default function Home() {
                     {task.name}
                   </span>
                   {task.duration_label && (
-                    <span className="text-xs text-white/25">{task.duration_label}</span>
+                    <span className={`text-xs flex-shrink-0 ${done ? 'text-green-700' : 'text-white/25'}`}>
+                      {task.duration_label}
+                    </span>
                   )}
                 </button>
               </li>
@@ -258,7 +338,7 @@ export default function Home() {
         <section className="bg-white/5 rounded-xl p-4 border border-white/8">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-white/70">
-              {new Date(selectedDay + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+              {new Date(selectedDay + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
             </h3>
             <button onClick={() => setSelectedDay(null)} className="text-white/30 hover:text-white/60 text-sm">✕</button>
           </div>
