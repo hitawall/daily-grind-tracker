@@ -1,18 +1,18 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { getSupabase } from '@/lib/supabase'
 
 export async function GET() {
   // All logs ever
-  const { data: logs, error: logsError } = await supabase
+  const { data: logs, error: logsError } = await getSupabase()
     .from('daily_logs')
     .select('date, task_id, completed')
 
   if (logsError) return NextResponse.json({ error: logsError.message }, { status: 500 })
 
   // All tasks (including inactive ones for historical stats)
-  const { data: tasks, error: tasksError } = await supabase
+  const { data: tasks, error: tasksError } = await getSupabase()
     .from('tasks')
     .select('id, name, duration_label, active')
 

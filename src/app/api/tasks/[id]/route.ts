@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { getSupabase } from '@/lib/supabase'
 
 export async function DELETE(
   _req: NextRequest,
@@ -9,7 +9,7 @@ export async function DELETE(
 ) {
   const { id } = await params
   // Soft-delete: preserve historical log data
-  const { error } = await supabase
+  const { error } = await getSupabase()
     .from('tasks')
     .update({ active: false })
     .eq('id', id)

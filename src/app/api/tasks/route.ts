@@ -1,10 +1,10 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { getSupabase } from '@/lib/supabase'
 
 export async function GET() {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('tasks')
     .select('*')
     .eq('active', true)
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'name is required' }, { status: 400 })
   }
 
-  const { data: maxRow } = await supabase
+  const { data: maxRow } = await getSupabase()
     .from('tasks')
     .select('order')
     .eq('active', true)
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
   const order = maxRow ? maxRow.order + 1 : 0
 
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('tasks')
     .insert({ name: name.trim(), duration_label: duration_label?.trim() || null, order })
     .select()

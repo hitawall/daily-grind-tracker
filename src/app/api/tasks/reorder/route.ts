@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { getSupabase } from '@/lib/supabase'
 
 // Body: { ids: string[] } — ordered list of task ids
 export async function POST(req: NextRequest) {
@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
   }
 
   const updates = ids.map((id: string, index: number) =>
-    supabase.from('tasks').update({ order: index }).eq('id', id)
+    getSupabase().from('tasks').update({ order: index }).eq('id', id)
   )
 
   const results = await Promise.all(updates)

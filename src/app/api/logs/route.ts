@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { getSupabase } from '@/lib/supabase'
 
 // GET /api/logs?start=YYYY-MM-DD&end=YYYY-MM-DD
 export async function GET(req: NextRequest) {
@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   const start = searchParams.get('start')
   const end = searchParams.get('end')
 
-  let query = supabase.from('daily_logs').select('*')
+  let query = getSupabase().from('daily_logs').select('*')
   if (start) query = query.gte('date', start)
   if (end) query = query.lte('date', end)
 
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'date and task_id required' }, { status: 400 })
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('daily_logs')
     .upsert({ date, task_id, completed }, { onConflict: 'date,task_id' })
     .select()
