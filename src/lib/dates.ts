@@ -51,6 +51,12 @@ export function parseDurationMinutes(label: string | null): number {
   return Math.round(total)
 }
 
+/** Minutes remaining until midnight IST (counts down each second). */
+export function minsLeftInDay(ist: Date): number {
+  const elapsed = ist.getHours() * 60 + ist.getMinutes() + ist.getSeconds() / 60
+  return Math.ceil(24 * 60 - elapsed)
+}
+
 /** Format minutes as "X hrs Y mins". */
 export function formatMinutes(mins: number): string {
   if (mins <= 0) return '0 mins'

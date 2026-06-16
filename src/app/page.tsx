@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { today, getDaysInMonth, toDateString, nowIST, parseDurationMinutes, formatMinutes } from '@/lib/dates'
+import { today, getDaysInMonth, toDateString, nowIST, parseDurationMinutes, formatMinutes, minsLeftInDay } from '@/lib/dates'
 import type { Task, DailyLog } from '@/lib/supabase'
 
 type Stats = {
@@ -129,27 +129,21 @@ export default function Home() {
   const days = getDaysInMonth(calYear, calMonth)
   const firstDow = new Date(calYear, calMonth, 1).getDay()
 
-  const timeStr = istNow.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
   const dateLabel = istNow.toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' })
+  const dayMinsLeft = minsLeftInDay(istNow)
 
   return (
     <div className="space-y-6">
 
-      {/* Clock + Time Remaining */}
+      {/* Day remaining */}
       <div className="rounded-xl px-5 py-4 flex items-center justify-between gap-4" style={s.card}>
         <div>
-          <div className="text-3xl font-bold tabular-nums" style={s.text1}>{timeStr}</div>
-          <div className="text-xs mt-1" style={s.text3}>{dateLabel} · IST</div>
+          <div className="text-3xl font-bold tabular-nums" style={s.text1}>{formatMinutes(dayMinsLeft)}</div>
+          <div className="text-xs mt-1" style={s.text3}>left in the day · IST</div>
         </div>
         <div className="text-right">
-          {allDone ? (
-            <div className="text-sm font-semibold text-green-600">All done!</div>
-          ) : (
-            <>
-              <div className="text-xl font-bold text-orange-500 tabular-nums">{formatMinutes(remainingMins)}</div>
-              <div className="text-xs mt-0.5" style={s.text3}>remaining</div>
-            </>
-          )}
+          <div className="text-sm font-medium" style={s.text2}>{dateLabel}</div>
+          {allDone && <div className="text-xs text-green-600 font-semibold mt-1">All done!</div>}
         </div>
       </div>
 
