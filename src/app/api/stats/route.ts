@@ -1,24 +1,29 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
 import { getSupabase } from '@/lib/supabase'
 
 export async function GET() {
-  // All logs ever
-  const { data: logs, error: logsError } = await getSupabase()
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const db = getSupabase()
+
+  const { data: logs, error: logsError } = await db
     .from('daily_logs')
     .select('date, task_id, completed')
+    .eq('user_id', userId)
 
   if (logsError) return NextResponse.json({ error: logsError.message }, { status: 500 })
 
-  // All tasks (including inactive ones for historical stats)
-  const { data: tasks, error: tasksError } = await getSupabase()
+  const { data: tasks, error: tasksError } = await db
     .from('tasks')
     .select('id, name, duration_label, active')
+    .eq('user_id', userId)
 
   if (tasksError) return NextResponse.json({ error: tasksError.message }, { status: 500 })
 
-  // Group logs by date
   const byDate = new Map<string, { total: number; completed: number }>()
   for (const log of logs ?? []) {
     const entry = byDate.get(log.date) ?? { total: 0, completed: 0 }
@@ -34,7 +39,6 @@ export async function GET() {
     return e.total > 0 && e.completed === e.total
   }).length
 
-  // Streak calculation
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
@@ -56,7 +60,6 @@ export async function GET() {
     }
 
     if (prev === null) {
-      // First complete day from the end: only count if it's today or yesterday
       const diffFromToday = Math.floor((today.getTime() - date.getTime()) / 86400000)
       if (diffFromToday <= 1) {
         streak = 1
@@ -79,7 +82,6 @@ export async function GET() {
   }
   if (streak > longestStreak) longestStreak = streak
 
-  // Per-task stats
   const taskStats = (tasks ?? []).map((task) => {
     const taskLogs = (logs ?? []).filter((l) => l.task_id === task.id)
     const total = taskLogs.length

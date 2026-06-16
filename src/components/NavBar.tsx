@@ -1,5 +1,6 @@
 'use client'
 
+import { UserButton } from '@clerk/nextjs'
 import { useTheme } from './ThemeProvider'
 
 export function NavBar() {
@@ -31,6 +32,7 @@ export function NavBar() {
         >
           {dark ? '☀' : '☾'}
         </button>
+        <UserButton />
       </div>
     </nav>
   )

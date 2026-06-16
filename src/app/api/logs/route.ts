@@ -1,15 +1,19 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
 import { getSupabase } from '@/lib/supabase'
 
-// GET /api/logs?start=YYYY-MM-DD&end=YYYY-MM-DD
 export async function GET(req: NextRequest) {
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { searchParams } = new URL(req.url)
   const start = searchParams.get('start')
   const end = searchParams.get('end')
 
-  let query = getSupabase().from('daily_logs').select('*')
+  const db = getSupabase()
+  let query = db.from('daily_logs').select('*').eq('user_id', userId)
   if (start) query = query.gte('date', start)
   if (end) query = query.lte('date', end)
 
@@ -18,19 +22,18 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(data)
 }
 
-// POST /api/logs — upsert a log entry
-// Body: { date, task_id, completed }
 export async function POST(req: NextRequest) {
-  const body = await req.json()
-  const { date, task_id, completed } = body
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const { date, task_id, completed } = await req.json()
   if (!date || !task_id) {
     return NextResponse.json({ error: 'date and task_id required' }, { status: 400 })
   }
 
   const { data, error } = await getSupabase()
     .from('daily_logs')
-    .upsert({ date, task_id, completed }, { onConflict: 'date,task_id' })
+    .upsert({ date, task_id, completed, user_id: userId }, { onConflict: 'date,task_id,user_id' })
     .select()
     .single()
 

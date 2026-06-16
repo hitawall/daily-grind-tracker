@@ -1,17 +1,21 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
 import { getSupabase } from '@/lib/supabase'
 
-// Body: { ids: string[] } — ordered list of task ids
 export async function POST(req: NextRequest) {
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { ids } = await req.json()
   if (!Array.isArray(ids)) {
     return NextResponse.json({ error: 'ids must be an array' }, { status: 400 })
   }
 
+  const db = getSupabase()
   const updates = ids.map((id: string, index: number) =>
-    getSupabase().from('tasks').update({ order: index }).eq('id', id)
+    db.from('tasks').update({ order: index }).eq('id', id).eq('user_id', userId)
   )
 
   const results = await Promise.all(updates)
