@@ -23,12 +23,12 @@ type Stats = {
 
 type DayState = 'complete' | 'partial' | 'missed' | 'future' | 'empty'
 
-function getDayState(dateStr: string, logsByDate: Map<string, DailyLog[]>, todayStr: string): DayState {
+function getDayState(dateStr: string, logsByDate: Map<string, DailyLog[]>, todayStr: string, totalTasks: number): DayState {
   if (dateStr > todayStr) return 'future'
-  const logs = logsByDate.get(dateStr)
-  if (!logs || logs.length === 0) return dateStr < todayStr ? 'missed' : 'empty'
+  if (totalTasks === 0) return 'empty'
+  const logs = logsByDate.get(dateStr) ?? []
   const done = logs.filter((l) => l.completed).length
-  if (done === logs.length) return 'complete'
+  if (done === totalTasks) return 'complete'
   if (done > 0) return 'partial'
   return dateStr < todayStr ? 'missed' : 'empty'
 }
@@ -335,7 +335,7 @@ export default function Home() {
           {Array.from({ length: firstDow }).map((_, i) => <div key={`e${i}`} />)}
           {days.map((day) => {
             const dateStr = toDateString(day)
-            const state = getDayState(dateStr, calendarLogs, todayStr)
+            const state = getDayState(dateStr, calendarLogs, todayStr, tasks.length)
             const isToday = dateStr === todayStr
             const isSelected = dateStr === selectedDay
             const isFuture = state === 'future'
