@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { today, getDaysInMonth, toDateString, nowIST, parseDurationMinutes, formatMinutes, minsLeftInDay } from '@/lib/dates'
+import { today, getDaysInMonth, toDateString, nowIST, parseDurationMinutes, formatMinutes } from '@/lib/dates'
 import type { Task, DailyLog } from '@/lib/supabase'
 
 type Stats = {
@@ -115,7 +115,7 @@ export default function Home() {
   const doneCount = tasks.filter((t) => todayLogs.get(t.id)).length
   const allDone = tasks.length > 0 && doneCount === tasks.length
   const totalMins = tasks.reduce((sum, t) => sum + parseDurationMinutes(t.duration_label), 0)
-  const dayMinsLeft = minsLeftInDay(istNow)
+  const completedMins = tasks.reduce((sum, t) => todayLogs.get(t.id) ? sum + parseDurationMinutes(t.duration_label) : sum, 0)
 
   const days = getDaysInMonth(calYear, calMonth)
   const firstDow = new Date(calYear, calMonth, 1).getDay()
@@ -132,32 +132,44 @@ export default function Home() {
         borderRadius: 16,
         padding: '18px 20px',
         boxShadow: 'var(--shadow)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 12,
       }}>
-        <div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-1)', letterSpacing: '-0.03em', lineHeight: 1.1 }}>
-            {formatMinutes(dayMinsLeft)}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-1)', letterSpacing: '-0.03em', lineHeight: 1.1 }}>
+              {totalMins > 0 ? formatMinutes(completedMins) : '—'}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+              {totalMins > 0 ? `of ${formatMinutes(totalMins)} completed` : 'no tasks yet'}
+            </div>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-            left in the day
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 13, color: 'var(--text-2)', fontWeight: 500 }}>{dateLabel}</div>
+            {allDone && (
+              <div style={{ fontSize: 12, color: 'var(--green-text)', marginTop: 4, fontWeight: 600 }}>All done ✓</div>
+            )}
           </div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 13, color: 'var(--text-2)', fontWeight: 500 }}>{dateLabel}</div>
-          {stats && stats.currentStreak > 0 && (
-            <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 4, fontWeight: 600 }}>
-              {stats.currentStreak} day streak
+        {/* Streak bar */}
+        {stats && (
+          <div style={{ display: 'flex', gap: 12, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 15 }}>🔥</span>
+              <div>
+                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-1)', letterSpacing: '-0.02em' }}>
+                  {stats.currentStreak}
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--text-3)', marginLeft: 4 }}>day streak</span>
+              </div>
             </div>
-          )}
-          {allDone && (
-            <div style={{ fontSize: 12, color: 'var(--green-text)', marginTop: 4, fontWeight: 600 }}>
-              All done ✓
+            <div style={{ width: 1, background: 'var(--border)' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-3)' }}>best</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-2)', letterSpacing: '-0.02em' }}>
+                {stats.longestStreak}
+              </span>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Today's tasks */}
@@ -427,12 +439,11 @@ export default function Home() {
       {/* Stats */}
       {stats && stats.totalDays > 0 && (
         <section>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
             {[
-              { value: stats.currentStreak,    label: 'Streak',     color: 'var(--accent)' },
-              { value: stats.longestStreak,    label: 'Best',       color: 'var(--text-2)' },
-              { value: stats.fullyCompleteDays, label: 'Full days',  color: 'var(--text-2)' },
-              { value: `${stats.completionRate}%`, label: 'Rate',   color: 'var(--text-2)' },
+              { value: stats.totalDays,            label: 'Days tracked', color: 'var(--text-2)' },
+              { value: stats.fullyCompleteDays,    label: 'Full days',    color: 'var(--text-2)' },
+              { value: `${stats.completionRate}%`, label: 'Rate',         color: 'var(--text-2)' },
             ].map(({ value, label, color }) => (
               <div key={label} style={{
                 background: 'var(--bg-card)',
