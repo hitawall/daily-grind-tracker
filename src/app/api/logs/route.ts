@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await getSupabase()
     .from('daily_logs')
-    .upsert({ date, task_id, completed, user_id: userId }, { onConflict: 'date,task_id,user_id' })
+    .upsert({ date, task_id, completed, user_id: userId }, { onConflict: 'date,task_id' })
     .select()
     .single()
 
